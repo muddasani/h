@@ -190,13 +190,18 @@ class TestSaveAuthorizationCode(object):
         authz_code = svc.save_authorization_code(client.id, code, oauth_request)
         assert authz_code.code == 'abcdef123456'
 
+    def test_it_sets_redirect_uri(self, svc, client, code, oauth_request):
+        authz_code = svc.save_authorization_code(client.id, code, oauth_request)
+        assert authz_code.redirect_uri == 'https://example.org/auth/callback'
+
     @pytest.fixture
     def code(self):
         return {'code': 'abcdef123456'}
 
     @pytest.fixture
     def oauth_request(self, factories):
-        return mock.Mock(user=factories.User(), spec_set=['user'])
+        return OAuthRequest('/', body={'user': factories.User(),
+                                       'redirect_uri': 'https://example.org/auth/callback'})
 
 
 class TestSaveBearerToken(object):

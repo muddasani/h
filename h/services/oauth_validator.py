@@ -112,7 +112,8 @@ class OAuthValidatorService(RequestValidator):
         authzcode = models.AuthzCode(user=request.user,
                                      authclient=client,
                                      expires=expires,
-                                     code=codestr)
+                                     code=codestr,
+                                     redirect_uri=request.redirect_uri)
         self.session.add(authzcode)
         return authzcode
 
