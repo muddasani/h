@@ -33,3 +33,4 @@ class AuthzCode(ModelFactory):
     authclient = factory.SubFactory(AuthClient)
     code = factory.LazyAttribute(generate_code)
     expires = factory.LazyAttribute(lambda _: (datetime.utcnow() + timedelta(minutes=10)))
+    redirect_uri = factory.SelfAttribute('authclient.redirect_uri')

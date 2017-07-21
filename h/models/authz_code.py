@@ -40,3 +40,6 @@ class AuthzCode(Base, mixins.Timestamps):
     #: A timestamp after which this authorization code will no longer be
     #: considered valid.
     expires = sa.Column(sa.DateTime, nullable=False)
+
+    #: The redirect_uri at the time the authorization code gets created.
+    redirect_uri = sa.Column(sa.UnicodeText, nullable=False)
