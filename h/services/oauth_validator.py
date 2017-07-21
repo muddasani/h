@@ -34,6 +34,7 @@ class OAuthValidatorService(RequestValidator):
         self.session = session
         self.user_svc = user_svc
 
+        self._cached_find_authz_code = lru_cache_in_transaction(self.session)(self._find_authz_code)
         self._cached_find_client = lru_cache_in_transaction(self.session)(self._find_client)
         self._cached_find_refresh_token = lru_cache_in_transaction(self.session)(self._find_refresh_token)
 
@@ -81,6 +82,16 @@ class OAuthValidatorService(RequestValidator):
 
         return (client.secret is not None)
 
+    def confirm_redirect_uri(self, client_id, code, redirect_uri, client, *args, **kwargs):
+        if not redirect_uri:
+            redirect_uri = client.authclient.redirect_uri
+
+        authz_code = self.find_authz_code(code)
+        return (authz_code.redirect_uri == redirect_uri)
+
+    def find_authz_code(self, code):
+        return self._cached_find_authz_code(code)
+
     def find_client(self, id_):
         return self._cached_find_client(id_)
 
@@ -101,6 +112,11 @@ class OAuthValidatorService(RequestValidator):
     def get_original_scopes(self, refresh_token, request, *args, **kwargs):
         """As we don't supports scopes, this returns the default scopes."""
         return self.get_default_scopes(self, request.client_id, request)
+
+    def invalidate_authorization_code(self, client_id, code, request, *args, **kwargs):
+        authz_code = self.find_authz_code(code)
+        if authz_code:
+            self.session.delete(authz_code)
 
     def save_authorization_code(self, client_id, code, request, *args, **kwargs):
         client = self.find_client(client_id)
@@ -132,6 +148,19 @@ class OAuthValidatorService(RequestValidator):
 
         client = self.find_client(client_id)
         return (client is not None)
+
+    def validate_code(self, client_id, code, client, request, *args, **kwargs):
+        authz_code = self.find_authz_code(code)
+        if authz_code is None:
+            return False
+
+        if authz_code.authclient.id != client_id:
+            return False
+
+        request.user = authz_code.user
+        request.scopes = self.get_default_scopes(client_id, request)
+
+        return True
 
     def validate_grant_type(self, client_id, grant_type, client, request, *args, **kwargs):
         """Validates that the given client is allowed to use the give grant type."""
@@ -185,6 +214,14 @@ class OAuthValidatorService(RequestValidator):
         # We only allow the (dummy) default scopes for now.
         default_scopes = self.get_default_scopes(client_id, request, *args, **kwargs)
         return (scopes == default_scopes)
+
+    def _find_authz_code(self, code):
+        if code is None:
+            return None
+
+        return (self.session.query(models.AuthzCode)
+                            .filter_by(code=code)
+                            .one_or_none())
 
     def _find_client(self, id_):
         if id_ is None:
